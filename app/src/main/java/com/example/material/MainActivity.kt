@@ -25,9 +25,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ColorFilter
@@ -73,25 +75,30 @@ fun CatchBallGame() {
     val basketHeight = 40f
 
     val backgroundlmage=painterResource(id = R.drawable.tree)
+    var isGameRunning by remember { mutableStateOf(false) }
 
 
-    LaunchedEffect(ballPosition) {
-        if (ballPosition.y > screenHeight) {
-            ballPosition = Offset(Random.nextFloat() * screenWidth, 0f)
-        } else {
-            delay(16)
-            ballPosition = ballPosition.copy(y = ballPosition.y + ballDropSpeed)
+    LaunchedEffect(isGameRunning) {
+        while (isGameRunning) { // 當遊戲進行中時，進入循環
+            if (ballPosition.y > screenHeight) {
+                ballPosition = Offset(Random.nextFloat() * screenWidth, 0f) // 重置球位置
+            } else {
+                delay(16) // 每幀更新一次位置
+                ballPosition = ballPosition.copy(y = ballPosition.y + ballDropSpeed)
 
-            // Check if the ball is caught
-            if (
-                ballPosition.y > screenHeight - basketHeight - 20 &&
-                ballPosition.x in basketX..(basketX + basketWidth)
-            ) {
-                score++
-                ballPosition = Offset(Random.nextFloat() * screenWidth, 0f)
+                // 判斷是否捕捉到球
+                if (
+                    ballPosition.y > screenHeight - basketHeight - 20 &&
+                    ballPosition.x in basketX..(basketX + basketWidth)
+                ) {
+                    score++ // 增加分數
+                    ballPosition = Offset(Random.nextFloat() * screenWidth, 0f) // 重置球位置
+                }
             }
         }
     }
+
+
 
     Box(modifier = Modifier.fillMaxSize())
     {   //background Image
@@ -141,11 +148,46 @@ fun CatchBallGame() {
         ) {
             androidx.compose.material3.Text(
                 text = "Score: $score",
-                color = Color.White
+                color = Color.Black
             )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            contentAlignment = Alignment.TopEnd // 確保按鈕放在右上角
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // 開始按鈕
+                androidx.compose.material3.Button(
+                    onClick = {
+                        isGameRunning = true
+                        score = 0
+                        ballPosition = Offset(Random.nextFloat() * screenWidth, 0f)
+                    }
+                ) {
+                    Text(text = "開始")
+                }
+
+                // 結束按鈕
+                androidx.compose.material3.Button(
+                    onClick = {
+                        isGameRunning = false
+                        ballPosition = Offset(Random.nextFloat() * screenWidth, 0f)
+                        score = 0
+                    }
+                ) {
+                    Text(text = "結束")
+                }
+            }
         }
     }
 }
+
+
+
 
 // Function to draw an individual box with a number inside it.
 fun DrawScope.drawBoxWithNumber(number: Int, x: Int, y: Int, cellSize: Float, padding: Dp) {
@@ -172,6 +214,7 @@ fun DrawScope.drawBoxWithNumber(number: Int, x: Int, y: Int, cellSize: Float, pa
         }
     )
 }
+
 
 
 
