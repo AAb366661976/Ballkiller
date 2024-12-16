@@ -151,7 +151,6 @@ fun CatchBallGame() {
                 color = Color.Black
             )
         }
-
         Box(
             modifier = Modifier
                 .fillMaxSize()
