@@ -152,7 +152,6 @@ fun CatchBallGame() {
             )
         }
 
-
         Box(
             modifier = Modifier
                 .fillMaxSize()
