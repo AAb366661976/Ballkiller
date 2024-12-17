@@ -38,6 +38,8 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role.Companion.Image
 import androidx.compose.ui.text.style.LineHeightStyle
@@ -65,158 +67,201 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun CatchBallGame() {
-    val screenWidth = 950f
-    val screenHeight = 1000f
 
+    val configuration = LocalConfiguration.current
+    val density = LocalDensity.current
+    val screenWidth = with(density) { configuration.screenWidthDp.dp.toPx() }
+    val screenHeight = with(density) { configuration.screenHeightDp.dp.toPx() }
     var basketX by remember { mutableStateOf(screenWidth / 2 - 50f) }
     var basketWidth by remember { mutableStateOf(100f) }
     var ballPosition by remember { mutableStateOf(Offset(Random.nextFloat() * screenWidth, 0f)) }
     var score by remember { mutableStateOf(0) }
+    var ballColor by remember { mutableStateOf(randomBallColor()) }
 
-    val ballDropSpeed = 10f
-    val basketHeight = 40f
+    val ballDropSpeed = 5f
+    val basketHeight = 30f
 
-    val backgroundlmage=painterResource(id = R.drawable.tree)
     var isGameRunning by remember { mutableStateOf(false) }
+    var isGameCompleted by remember { mutableStateOf(false) }
 
-
-    LaunchedEffect(isGameRunning) {
-        while (isGameRunning) { // 當遊戲進行中時，進入循環
+    LaunchedEffect(isGameRunning, isGameCompleted) {
+        while (isGameRunning && !isGameCompleted) {
             if (ballPosition.y > screenHeight) {
-                ballPosition = Offset(Random.nextFloat() * screenWidth, 0f) // 重置球位置
+                ballPosition = Offset(Random.nextFloat() * screenWidth, 0f)
+                ballColor = randomBallColor() // 碰到底部，隨機更換顏色
             } else {
-                delay(16) // 每幀更新一次位置
+                delay(16)
                 ballPosition = ballPosition.copy(y = ballPosition.y + ballDropSpeed)
 
-                // 判斷是否捕捉到球
                 if (
                     ballPosition.y > screenHeight - basketHeight - 20 &&
                     ballPosition.x in basketX..(basketX + basketWidth)
                 ) {
-                    score++ // 增加分數
-                    ballPosition = Offset(Random.nextFloat() * screenWidth, 0f) // 重置球位置
+                    // 捕捉到球，計分
+                    when (ballColor) {
+                        Color.Magenta -> score *= 2
+                        Color.Gray -> score += 4
+                        Color.Yellow -> score -= 1
+                        else -> score++
+                    }
+
+                    ballPosition = Offset(Random.nextFloat() * screenWidth, 0f)
+                    ballColor = randomBallColor()
+
+                    if (score >= 20) {
+                        isGameRunning = false
+                        isGameCompleted = true
+                    }
                 }
             }
         }
     }
 
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (isGameCompleted) {
+            GameOverScreen(
+                onRetry = {
+                    isGameCompleted = false
+                    score = 0
+                    ballPosition = Offset(Random.nextFloat() * screenWidth, 0f)
+                    ballColor = randomBallColor()
+                    isGameRunning = true
+                }
+            )
+        } else {
+            GameScreen(
+                screenWidth = screenWidth,
+                screenHeight = screenHeight,
+                basketX = basketX,
+                basketWidth = basketWidth,
+                ballPosition = ballPosition,
+                ballColor = ballColor,
+                score = score,
+                onDrag = { dx ->
+                    basketX = (basketX + dx).coerceIn(0f, screenWidth - basketWidth)
+                },
+                onGameStart = {
+                    isGameRunning = true
+                    score = 0
+                    ballPosition = Offset(Random.nextFloat() * screenWidth, 0f)
+                    ballColor = randomBallColor()
+                },
+                onGameStop = {
+                    isGameRunning = false
+                    score = 0
+                }
+            )
+        }
+    }
+}
 
+@Composable
+fun GameScreen(
+    screenWidth: Float,
+    screenHeight: Float,
+    basketX: Float,
+    basketWidth: Float,
+    ballPosition: Offset,
+    ballColor: Color,
+    score: Int,
+    onDrag: (Float) -> Unit,
+    onGameStart: () -> Unit,
+    onGameStop: () -> Unit
+) {
+    Image(
+        painter = painterResource(id = R.drawable.tree),
+        contentDescription = null,
+        modifier = Modifier.fillMaxSize(),
+        contentScale = ContentScale.Crop
+    )
 
-    Box(modifier = Modifier.fillMaxSize())
-    {   //background Image
-        val backgroundImage: Painter=painterResource(id = R.drawable.tree)
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        drawCircle(color = ballColor, radius = 20f, center = ballPosition)
+    }
+
+    Canvas(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                detectDragGestures { change, dragAmount ->
+                    change.consume()
+                    onDrag(dragAmount.x)
+                }
+            }
+    ) {
+        drawRect(
+            color = Color.Blue,
+            topLeft = Offset(basketX, screenHeight - 30f),
+            size = Size(basketWidth, 30f)
+        )
+    }
+
+    ScoreDisplay(score = score)
+    GameControls(onGameStart = onGameStart, onGameStop = onGameStop)
+}
+
+@Composable
+fun GameOverScreen(onRetry: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White),
+        contentAlignment = Alignment.Center
+    ) {
         Image(
-            painter = backgroundImage,
+            painter = painterResource(id = R.drawable.win), // 替換成你的圖片資源 ID
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop
+            contentScale = ContentScale.Crop // 讓圖片填滿螢幕
         )
-
-        // Ball
-        Canvas(
-            modifier = Modifier.fillMaxSize()
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            drawCircle(
-                color = Color.Red,
-                radius = 20f,
-                center = ballPosition
-            )
-        }
-
-        // Basket
-        Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(Unit) {
-                    detectDragGestures { change, dragAmount ->
-                        change.consume()
-                        basketX = (basketX + dragAmount.x).coerceIn(0f, screenWidth - basketWidth)
-                    }
-                }
-        ) {
-            drawRect(
-                color = Color.Blue,
-                topLeft = Offset(basketX, screenHeight - basketHeight),
-                size = androidx.compose.ui.geometry.Size(basketWidth, basketHeight)
-            )
-        }
-
-
-        // Score
-        Box(
-            modifier = Modifier
-                .padding(16.dp)
-
-        ) {
-            androidx.compose.material3.Text(
-                text = "Score: $score",
-                color = Color.Black
-            )
-        }
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            contentAlignment = Alignment.TopEnd // 確保按鈕放在右上角
-        ) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // 開始按鈕
-                androidx.compose.material3.Button(
-                    onClick = {
-                        isGameRunning = true
-                        score = 0
-                        ballPosition = Offset(Random.nextFloat() * screenWidth, 0f)
-                    }
-                ) {
-                    Text(text = "開始")
-                }
-
-                // 結束按鈕
-                androidx.compose.material3.Button(
-                    onClick = {
-                        isGameRunning = false
-                        ballPosition = Offset(Random.nextFloat() * screenWidth, 0f)
-                        score = 0
-                    }
-                ) {
-                    Text(text = "結束")
-                }
+            Text(text = "🎉 恭喜通關！ 🎉", color = Color.Green, fontSize = 24.sp)
+            Button(onClick = onRetry) {
+                Text(text = "再來一次")
             }
         }
     }
 }
 
-
-
-
-// Function to draw an individual box with a number inside it.
-fun DrawScope.drawBoxWithNumber(number: Int, x: Int, y: Int, cellSize: Float, padding: Dp) {
-    val boxSize = cellSize - padding.toPx()
-    val left = x * cellSize + padding.toPx()
-    val top = y * cellSize + padding.toPx()
-
-    drawRoundRect(
-        color = Color.Green.copy(0.5f),
-        topLeft = Offset(left, top),
-        size = Size(boxSize, boxSize),
-        cornerRadius = CornerRadius(16.dp.toPx(), 16.dp.toPx())
-    )
-    drawContext.canvas.nativeCanvas.drawText(
-        number.toString(),
-        left + boxSize / 2,
-        top + boxSize / 1.5f,
-        Paint().asFrameworkPaint().apply {
-            isAntiAlias = true
-            textSize = 40.sp.toPx()
-            textAlign = android.graphics.Paint.Align.CENTER
-            color = android.graphics.Color.BLACK
-            typeface = android.graphics.Typeface.create("", android.graphics.Typeface.BOLD)
-        }
-    )
+@Composable
+fun ScoreDisplay(score: Int) {
+    Column(
+        modifier = Modifier.padding(16.dp)
+    ) {
+        Text(text = "分數: $score", color = Color.Black, fontSize = 18.sp)
+        Text(text = "說明:", color = Color.Blue, fontSize = 16.sp)
+        Text(text = "紅色+1, 灰色+4, 黃色-1, 紫色*2", color = Color.Blue, fontSize = 14.sp)
+    }
 }
 
+@Composable
+fun GameControls(onGameStart: () -> Unit, onGameStop: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        contentAlignment = Alignment.TopEnd
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(onClick = onGameStart) {
+                Text(text = "開始")
+            }
+            Button(onClick = onGameStop) {
+                Text(text = "結束")
+            }
+        }
+    }
+}
+
+fun randomBallColor(): Color {
+    val colors = listOf(Color.Red, Color.Magenta, Color.Gray, Color.Yellow)
+    return colors.random()
+}
 
 
 
